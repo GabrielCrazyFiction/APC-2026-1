@@ -1,26 +1,26 @@
-LDA three      ; acumulador = 3 (result inicial = 3^1)
+LDA three      ;
         STA result
 
-loop    OUT            ; imprime result atual
+loop    OUT            ;
 
-        ; multiplica result * 3 via soma repetida
+        ;
         LDA zero
-        STA temp       ; temp = 0 (acumulador novo)
+        STA temp       ; temp = 0
 
         LDA temp
         ADD result
-        STA temp       ; temp += result  (1a vez)
+        STA temp       ; temp += result
 
         LDA temp
         ADD result
-        STA temp       ; temp += result  (2a vez)
+        STA temp       ; temp += result
 
         LDA temp
         ADD result
-        STA temp       ; temp += result  (3a vez)
+        STA temp       ; temp += result
 
         LDA temp
-        STA result     ; result = result * 3
+        STA result     ; result = result
 
         BRA loop       ; repete forever
 
