@@ -1,0 +1,7 @@
+Durante meus primeiros contatos com o Code.org, percebi uma certa familiaridade com outras linguagens (JavaScript, se não estiver enganado). Pude ter contato com fazer desenhos, mudar parâmetros de objetos, formatos, concatenar objetos a variáveis, acessar números randomicamente para tarefas, colocar sprites, modificar a propriedade das sprites e escrever textos.
+
+Um dos exercícios que eu mais curti e que eu tive uma certa dificuldade foi um de Random Numbers. Você pode conferir o código no link abaixo:
+
+código...
+
+Basicamente esse código atribui para as variáveis (apelidadas carinhosamente como "randola") números entre o intervalo de RandomNumber de maneira aleatória. Com isso em mente, o `fill` de cada respectivo planeta estipula na `ellipse` quais serão as posições no espaço (sendo os dois primeiros espaços responsáveis por x e y, respectivamente) e seus tamanhos (3° espaço de `ellipse`), dos quais têm seus valores baseados nas variáveis randômicas.
