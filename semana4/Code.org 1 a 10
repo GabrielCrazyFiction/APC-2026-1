@@ -1,0 +1,26 @@
+var randola = randomNumber(0, 400); 
+var randola1 = randomNumber(0, 400); 
+var randola2 = randomNumber(0, 400); 
+var randola3 = randomNumber(0, 400); 
+var randola4 = randomNumber(0, 400); 
+var randola5 = randomNumber(0, 400); 
+
+background("black"); 
+
+fill("yellow"); 
+ellipse(randola, randola5, randola3); 
+
+fill("salmon"); 
+ellipse(randola1, randola4, randola); 
+
+fill("cyan"); 
+ellipse(randola2, randola3, randola4); 
+
+fill("lavender"); 
+ellipse(randola3, randola2, randola2); 
+
+fill("crimson"); 
+ellipse(randola4, randola1, randola5); 
+
+fill("orchid"); 
+ellipse(randola5, randola, randola1);
