@@ -1,0 +1,5 @@
+RELATÓRIO PDAD 2024
+Total de moradores: 2424
+Idade média: 33.8
+Escolaridade mais comum: 2
+Percentual com superior completo: 0.00%
