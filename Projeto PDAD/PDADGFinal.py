@@ -5,12 +5,14 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Dict, List, Tuple
+from datetime import datetime
 
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
+import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -27,7 +29,6 @@ class Config:
 
     @staticmethod
     def carregar_nomes_ras() -> Dict[str, str]:
-        """Carrega mapeamento código RA -> nome do dicionário de variáveis."""
         try:
             df_dict = pd.read_excel(Config.DICIONARIO_PATH, sheet_name='Variáveis')
             df_ras = df_dict[df_dict['Coluna'].str.contains('localidade|I08', case=False, na=False)]
@@ -47,40 +48,47 @@ class Config:
         except Exception as e:
             logging.warning(f"Não foi possível carregar nomes das RAs: {e}")
         
-        # Fallback: mapeamento básico
         return {
-            "5301": "Brasília",
-            "5302": "Taguatinga",
-            "5303": "Ceilândia",
-            "5304": "Gama",
+            "5301": "Brasília (Plano Piloto)",
+            "5302": "Gama",
+            "5303": "Taguatinga",
+            "5304": "Brazlândia",
             "5305": "Sobradinho",
             "5306": "Planaltina",
             "5307": "Paranoá",
             "5308": "Núcleo Bandeirante",
-            "5309": "Santa Maria",
-            "5310": "São Sebastião",
-            "5311": "Recanto das Emas",
-            "5312": "Lago Sul",
-            "5313": "Riacho Fundo",
-            "5314": "Lago Norte",
-            "5315": "Candangolândia",
+            "5309": "Ceilândia",
+            "5310": "Guará",
+            "5311": "Cruzeiro",
+            "5312": "Samambaia",
+            "5313": "Santa Maria",
+            "5314": "São Sebastião",
+            "5315": "Recanto das Emas",
             "5316": "Águas Claras",
-            "5317": "Riacho Fundo II",
-            "5318": "Sudoeste/Octogonal",
-            "5319": "Varjão",
+            "5317": "Riacho Fundo",
+            "5318": "Lago Norte",
+            "5319": "Candangolândia",
             "5320": "Park Way",
             "5321": "SCIA/Estrutural",
             "5322": "Sobradinho II",
-            "5323": "Jardim Botânico",
-            "5324": "Itapoã",
-            "5325": "SIA",
+            "5323": "Varjão",
+            "5324": "Sudoeste/Octogonal",
+            "5325": "Itapoã",
             "5326": "Vicente Pires",
-            "5327": "Fercal",
+            "5327": "Jardim Botânico",
+            "5328": "SIA",
+            "5329": "Fercal",
+            "5330": "Sol Nascente/Pôr do Sol",
+            "5331": "Arniqueira",
+            "5332": "Arapoanga",
+            "5333": "Água Quente",
+            "5334": "Samambaia Norte",
+            "5335": "Brazlândia Rural",
+            "5336": "Planaltina Rural",
         }
 
     @staticmethod
     def carregar_niveis_escolaridade() -> Dict[int, str]:
-        """Carrega mapeamento de níveis de escolaridade."""
         return {
             1: "Sem instrução",
             2: "Fundamental incompleto",
@@ -92,8 +100,15 @@ class Config:
             8: "Sem classificação"
         }
 
+    @staticmethod
+    def carregar_nomes_genero() -> Dict[str, str]:
+        return {
+            "1": "Masculino",
+            "2": "Feminino",
+            "3": "Não binário"
+        }
+
 def quicksort(arr: List[str]) -> List[str]:
-    """Ordenação alfabética manual (D4) para listagem de RAs."""
     if len(arr) <= 1:
         return arr
     pivot = arr[len(arr) // 2]
@@ -103,7 +118,6 @@ def quicksort(arr: List[str]) -> List[str]:
     return quicksort(left) + middle + quicksort(right)
 
 def quicksort_ranking(items: List[Tuple[str, float]], reverse: bool = True) -> List[Tuple[str, float]]:
-    """Ordenação manual de ranking de RAs por renda média (D4)."""
     if len(items) <= 1:
         return items
     pivot = items[len(items) // 2][1]
@@ -125,6 +139,7 @@ class DataEngine:
         self.cache_ranking: List[Tuple[str, float]] | None = None
         self.ra_names: Dict[str, str] = config.carregar_nomes_ras()
         self.niveis_escolaridade: Dict[int, str] = config.carregar_niveis_escolaridade()
+        self.nomes_genero: Dict[str, str] = config.carregar_nomes_genero()
 
     def validate_schema(self, df: pd.DataFrame, required_cols: List[str]) -> None:
         missing = [col for col in required_cols if col not in df.columns]
@@ -143,7 +158,6 @@ class DataEngine:
                 df[col] = df[col].replace(self.config.SENTINELS, pd.NA)
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Limpeza específica de gênero
         if 'id_genero' in df.columns:
             df['id_genero'] = df['id_genero'].astype(str).str.strip()
             df['id_genero'] = df['id_genero'].where(
@@ -213,21 +227,24 @@ class DataEngine:
             return self.cache_stats[ra]
         if df_filtrado.empty:
             return "Sem dados", "Sem dados", "0"
+        
         renda = df_filtrado["renda_ind"].dropna()
         if renda.empty:
             return "Sem dados", "Sem dados", str(len(df_filtrado))
+        
         media = renda.mean()
         mediana = renda.median()
         contagem = len(df_filtrado)
+        
         res = (
             f"Média: R$ {media:,.2f}",
+            f"",
             f"Total: {contagem}",
         )
         self.cache_stats[ra] = res
         return res
 
     def obter_nome_ra(self, codigo: str) -> str:
-        """Retorna nome completo da RA no formato 'código - nome'."""
         nome = self.ra_names.get(codigo, "")
         return f"{codigo} - {nome}" if nome else codigo
 
@@ -277,7 +294,7 @@ class App(tk.Tk):
         ttk.Button(sidebar, text="Limpar Comparação", command=self.limpar_comparacao).pack(fill="x", pady=2)
 
         ttk.Separator(sidebar, orient="horizontal").pack(fill="x", pady=10)
-        ttk.Button(sidebar, text="📊 Ranking de RAs (D4)", command=self.show_ranking).pack(fill="x", pady=5)
+        ttk.Button(sidebar, text=" Ranking de RAs (D4)", command=self.show_ranking).pack(fill="x", pady=5)
         ttk.Button(sidebar, text="🔍 Ver Detalhes (D5)", command=self.show_details).pack(fill="x", pady=5)
         ttk.Button(sidebar, text="💾 Exportar Relatório", command=self.export_data).pack(fill="x", pady=5)
 
@@ -382,46 +399,81 @@ class App(tk.Tk):
             ra2_codigo = self._selected_ra_code2() if self.ra_var2.get() else None
             df2 = self.df[self.df["localidade"].astype(str) == ra2_codigo] if ra2_codigo else None
             
+            def obter_nome_genero(codigo):
+                return self.engine.nomes_genero.get(str(codigo), f"Gênero {codigo}")
+            
             if df2 is not None and not df2.empty:
                 g2 = df2.groupby("id_genero", observed=True)["renda_ind"].mean()
                 all_gen = sorted(set(g1.index) | set(g2.index))
                 x = range(len(all_gen))
                 h1 = [g1.get(g, 0) for g in all_gen]
                 h2 = [g2.get(g, 0) for g in all_gen]
+                
+                genero_labels = [obter_nome_genero(g) for g in all_gen]
+                
                 self.ax1.bar([i - 0.2 for i in x], h1, width=0.4, label=label_ra, color="royalblue")
                 self.ax1.bar([i + 0.2 for i in x], h2, width=0.4, label=self.ra_var2.get(), color="darkorange")
                 self.ax1.set_xticks(list(x))
-                self.ax1.set_xticklabels([f"Gênero {g}" for g in all_gen])
+                self.ax1.set_xticklabels(genero_labels, rotation=0)
                 self.ax1.legend()
             else:
-                self.ax1.bar(g1.index.astype(str), g1.values, color="royalblue")
-                self.ax1.set_xticklabels([f"Gênero {g}" for g in g1.index])
+                genero_labels = [obter_nome_genero(g) for g in g1.index]
+                self.ax1.bar(genero_labels, g1.values, color="royalblue")
+                self.ax1.set_xticklabels(genero_labels, rotation=0)
+            
             self.ax1.set_title(f"Média de Renda por Gênero - {label_ra}")
             self.ax1.set_ylabel("Renda (R$)")
+            self.ax1.tick_params(axis='x', rotation=0)
 
         renda_valida1 = df_filt["renda_ind"].dropna()
         if not renda_valida1.empty:
-            r1 = renda_valida1[renda_valida1 <= 20000]
-            self.ax2.hist(r1, bins=30, alpha=0.6, label=label_ra, color="royalblue", edgecolor="white")
-            self.ax2.axvline(r1.median(), color='blue', linestyle='dashed', linewidth=1.5, label=f'Mediana {label_ra}')
+            r1 = renda_valida1[renda_valida1 <= 12500]
             
             ra2_codigo = self._selected_ra_code2() if self.ra_var2.get() else None
             if ra2_codigo:
                 df2 = self.df[self.df["localidade"].astype(str) == ra2_codigo]
                 r2 = df2["renda_ind"].dropna()
-                r2 = r2[r2 <= 20000]
-                self.ax2.hist(r2, bins=30, alpha=0.6, label=self.ra_var2.get(), color="darkorange", edgecolor="white")
-                self.ax2.axvline(r2.median(), color='red', linestyle='dashed', linewidth=1.5, label=f'Mediana {self.ra_var2.get()}')
-            self.ax2.legend()
-            self.ax2.set_title("Distribuição de Renda (Limitado a R$ 20.000)")
+                r2 = r2[r2 <= 12500]
+                
+                min_val = min(r1.min(), r2.min()) if not r2.empty else r1.min()
+                max_val = max(r1.max(), r2.max()) if not r2.empty else r1.max()
+                bins = np.linspace(0, 12500, 21)
+                
+                self.ax2.hist(r1, bins=bins, alpha=0.6, label=label_ra, 
+                             color="royalblue", edgecolor="white", density=False)
+                self.ax2.hist(r2, bins=bins, alpha=0.6, label=self.ra_var2.get(), 
+                             color="darkorange", edgecolor="white", density=False)
+                
+                self.ax2.axvline(r1.median(), color='blue', linestyle='-', 
+                                linewidth=2.5, label=f'Mediana {label_ra}', alpha=0.9)
+                self.ax2.axvline(r2.median(), color='red', linestyle='-', 
+                                linewidth=2.5, label=f'Mediana {self.ra_var2.get()}', alpha=0.9)
+            else:
+                bins = np.linspace(0, 12500, 21)
+                self.ax2.hist(r1, bins=bins, alpha=0.7, label=label_ra, 
+                             color="royalblue", edgecolor="white")
+                self.ax2.axvline(r1.median(), color='darkblue', linestyle='-', 
+                                linewidth=3, label=f'Mediana: R$ {r1.median():,.2f}', alpha=0.9)
+            
+            self.ax2.legend(loc='upper right')
+            self.ax2.set_title("Distribuição de Renda (Limitado a R$ 12.500)")
             self.ax2.set_xlabel("Renda (R$)")
             self.ax2.set_ylabel("Frequência")
+            self.ax2.set_xlim(0, 12500)
+            self.ax2.grid(axis='y', alpha=0.3)
 
         self.fig.tight_layout()
         self.canvas.draw()
 
         s1, s2, s3 = self.engine.obter_estatisticas(df_filt, codigo_ra)
-        texto_stats = f"Estatísticas ({label_ra}):\n{s1}\n{s2}\n{s3}"
+        
+        stats_parts = [f"Estatísticas ({label_ra}):"]
+        if s1 and s1 != "Sem dados":
+            stats_parts.append(s1)
+        if s3:
+            stats_parts.append(s3)
+        
+        texto_stats = "\n".join(stats_parts)
         self.stats_label.config(text=texto_stats)
 
     def _selected_ra_code2(self) -> str:
@@ -459,15 +511,15 @@ class App(tk.Tk):
         frame = ttk.Frame(top, padding="20")
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text=f"🏙️ REGIÃO ADMINISTRATIVA: {label_ra}", font=("Arial", 14, "bold")).pack(pady=10)
+        ttk.Label(frame, text=f"️ REGIÃO ADMINISTRATIVA: {label_ra}", font=("Arial", 14, "bold")).pack(pady=10)
 
         posicao = next((idx for idx, (ra, _) in enumerate(self.ranking_ras, start=1) if ra == codigo_ra), None)
         posicao_txt = f"{posicao}º lugar" if posicao else "N/A"
-        ttk.Label(frame, text=f"📊 Posição no Ranking de Renda: {posicao_txt}", font=("Arial", 11)).pack(pady=5)
+        ttk.Label(frame, text=f" Posição no Ranking de Renda: {posicao_txt}", font=("Arial", 11)).pack(pady=5)
 
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=15)
 
-        ttk.Label(frame, text="👥 DADOS DA POPULAÇÃO", font=("Arial", 12, "bold"), foreground="steelblue").pack(anchor="w", pady=(10, 5))
+        ttk.Label(frame, text=" DADOS DA POPULAÇÃO", font=("Arial", 12, "bold"), foreground="steelblue").pack(anchor="w", pady=(10, 5))
         total_pessoas = len(df_filt)
         ttk.Label(frame, text=f"Total de moradores pesquisados: {total_pessoas:,}", font=("Arial", 10)).pack(anchor="w", padx=20)
 
@@ -514,10 +566,31 @@ class App(tk.Tk):
 
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=15)
 
-        ttk.Label(frame, text="⭐ MAIORES RENDAS (Top 10)", font=("Arial", 12, "bold"), foreground="orange").pack(anchor="w", pady=(10, 5))
-        top10 = df_filt[['renda_ind']].dropna().sort_values('renda_ind', ascending=False).head(10)
+        ttk.Label(frame, text=f"⭐ MAIORES RENDAS - Top 10 ({label_ra})", font=("Arial", 12, "bold"), foreground="orange").pack(anchor="w", pady=(10, 5))
+        
+        top10 = df_filt[['renda_ind', 'A01nficha']].dropna().sort_values('renda_ind', ascending=False).head(10)
+        
         for i, (_, row) in enumerate(top10.iterrows(), 1):
-            ttk.Label(frame, text=f"{i}º lugar: R$ {row['renda_ind']:,.2f}", font=("Arial", 10)).pack(anchor="w", padx=20)
+            ficha = row['A01nficha']
+            renda_valor = row['renda_ind']
+            
+            localizacao_info = ""
+            cols_endereco = ['I02endereco', 'endereco', 'I02quadra', 'quadra', 'I02lote', 'lote']
+            for col in cols_endereco:
+                if col in df_filt.columns:
+                    try:
+                        valor = df_filt[df_filt['A01nficha'] == ficha][col].values[0]
+                        if pd.notna(valor) and str(valor).strip():
+                            localizacao_info += f" {str(valor).strip()}"
+                    except:
+                        pass
+            
+            if localizacao_info.strip():
+                ttk.Label(frame, text=f"{i}º lugar: R$ {renda_valor:,.2f} -{localizacao_info.strip()}", 
+                         font=("Arial", 10)).pack(anchor="w", padx=20)
+            else:
+                ttk.Label(frame, text=f"{i}º lugar: R$ {renda_valor:,.2f}", 
+                         font=("Arial", 10)).pack(anchor="w", padx=20)
 
         ttk.Button(frame, text="Fechar", command=top.destroy).pack(pady=20)
 
@@ -529,15 +602,22 @@ class App(tk.Tk):
         codigo_ra = self._selected_ra_code()
         label_ra = self.ra_var.get()
 
+        data_geracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
         total_moradores = len(df_filt)
 
         idade_media = 0.0
+        idade_min = 0
+        idade_max = 0
         if 'idade_calculada' in df_filt.columns:
             idade_valida = df_filt['idade_calculada'].dropna()
             if not idade_valida.empty:
                 idade_media = idade_valida.mean()
+                idade_min = int(idade_valida.min())
+                idade_max = int(idade_valida.max())
 
         escolaridade_mais_comum = "Não disponível"
+        distribuicao_escolaridade = ""
         if 'escolaridade' in df_filt.columns:
             escolaridade_valida = df_filt['escolaridade'].dropna()
             if not escolaridade_valida.empty:
@@ -545,6 +625,17 @@ class App(tk.Tk):
                 if not escolaridade_contagens.empty:
                     codigo_top = int(float(escolaridade_contagens.index[0]))
                     escolaridade_mais_comum = self.engine.niveis_escolaridade.get(codigo_top, f"Nível {codigo_top}")
+                    
+                    linhas_escolaridade = []
+                    for codigo, quantidade in escolaridade_contagens.items():
+                        try:
+                            codigo_int = int(float(codigo))
+                            nome_nivel = self.engine.niveis_escolaridade.get(codigo_int, f"Nível {codigo}")
+                            percentual = (quantidade / len(escolaridade_valida) * 100)
+                            linhas_escolaridade.append(f"  - {nome_nivel}: {quantidade:,} pessoas ({percentual:.1f}%)")
+                        except:
+                            pass
+                    distribuicao_escolaridade = "\n".join(linhas_escolaridade)
 
         percentual_superior = 0.0
         if 'escolaridade' in df_filt.columns:
@@ -553,12 +644,75 @@ class App(tk.Tk):
                 superior_count = (df_filt['escolaridade'] == '7').sum()
                 percentual_superior = (superior_count / total) * 100
 
-        relatorio = f"""RELATÓRIO PDAD 2024
-Região Administrativa: {label_ra}
-Total de moradores: {total_moradores}
-Idade média: {idade_media:.1f}
+        renda = df_filt['renda_ind'].dropna()
+        renda_media = 0.0
+        renda_minima = 0.0
+        renda_maxima = 0.0
+        renda_mediana = 0.0
+        pessoas_sem_renda = 0
+        percentual_sem_renda = 0.0
+        
+        if not renda.empty:
+            renda_media = renda.mean()
+            renda_minima = renda.min()
+            renda_maxima = renda.max()
+            renda_mediana = renda.median()
+            pessoas_sem_renda = (renda == 0).sum()
+            percentual_sem_renda = (pessoas_sem_renda / len(renda) * 100) if len(renda) > 0 else 0
+
+        posicao = next((idx for idx, (ra, _) in enumerate(self.ranking_ras, start=1) if ra == codigo_ra), None)
+        posicao_txt = f"{posicao}º lugar" if posicao else "N/A"
+
+        top10_texto = ""
+        if not renda.empty:
+            top10 = df_filt[['renda_ind', 'A01nficha']].dropna().sort_values('renda_ind', ascending=False).head(10)
+            linhas_top10 = []
+            for i, (_, row) in enumerate(top10.iterrows(), 1):
+                ficha = row['A01nficha']
+                renda_valor = row['renda_ind']
+                linhas_top10.append(f"  {i}º lugar: R$ {renda_valor:,.2f}")
+            top10_texto = "\n".join(linhas_top10)
+
+        relatorio = f"""═══════════════════════════════════════════════════════════
+RELATÓRIO PDAD 2024 - RECorte B: RENDA E DESIGUALDADE
+═══════════════════════════════════════════════════════════
+Data de geração: {data_geracao}
+
+═══════════════════════════════════════════════════════════
+REGIÃO ADMINISTRATIVA: {label_ra}
+Posição no Ranking de Renda: {posicao_txt}
+═══════════════════════════════════════════════════════════
+
+ DADOS DA POPULAÇÃO
+───────────────────────────────────────────────────────────
+Total de moradores pesquisados: {total_moradores:,}
+Idade média: {idade_media:.1f} anos
+Faixa etária: {idade_min} a {idade_max} anos
+
+ DADOS DE RENDA
+───────────────────────────────────────────────────────────
+Renda média mensal: R$ {renda_media:,.2f}
+Renda mediana: R$ {renda_mediana:,.2f}
+Menor renda registrada: R$ {renda_minima:,.2f}
+Maior renda registrada: R$ {renda_maxima:,.2f}
+Pessoas sem renda: {pessoas_sem_renda:,} ({percentual_sem_renda:.1f}%)
+
+📚 NÍVEL DE ESCOLARIDADE
+───────────────────────────────────────────────────────────
 Escolaridade mais comum: {escolaridade_mais_comum}
 Percentual com superior completo: {percentual_superior:.2f}%
+
+Distribuição completa:
+{distribuicao_escolaridade if distribuicao_escolaridade else "  Dados não disponíveis"}
+
+⭐ MAIORES RENDAS - TOP 10
+───────────────────────────────────────────────────────────
+{top10_texto if top10_texto else "  Dados não disponíveis"}
+
+═══════════════════════════════════════════════════════════
+Sistema de Exploração PDAD 2024
+Desenvolvido por: Gabriel de Oliveira
+═══════════════════════════════════════════════════════════
 """
 
         file_path = filedialog.asksaveasfilename(
